@@ -1,0 +1,13 @@
+#include "allocator.h"
+
+void test_allocator_init() {
+  allocator_t alloc;
+  size_t buffer_len = 8;
+  byte buffer[buffer_len] = {0};
+  allocator_init(&alloc, buffer, buffer_len);
+}
+
+int main() {
+  test_allocator_init();
+  printf("\nAll tests passed\n");
+}

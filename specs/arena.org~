@@ -1,0 +1,116 @@
+#+TITLE: Arena Allocator in C Specification
+#+PROPERTY: header-args:python +tangle:yes
+#+PROPERTY: header-args:c +tangle:src/allocator.c
+
+* Specifications
+
+A C Arena allocator operates over a provided buffer at initialization.
+
+- Fixed granularity blocks with variable contiguous length
+- Allocator needs to keep track of chunks (partition over blocks)
+
+* Implementation
+
+#+begin_src c :tangle src/allocator.h
+// allocator.h
+#ifndef ALLOCATOR
+#define ALLOCATOR
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+
+typedef unsigned char byte;
+typedef unsigned int uint;
+
+#define BLOCK_SIZE 32 // fixed arena block size
+#define BYTES_TO_BLOCKS(bytes)                                                 \
+  (bytes / BLOCK_SIZE + (bytes % BLOCK_SIZE > 0 ? 1 : 0))
+
+typedef struct arena_chunk {
+  size_t length; // in blocks
+  struct arena_chunk *next;
+  struct arena_chunk *prev;
+  bool in_use;
+} arena_chunk_header;
+
+typedef struct {
+  arena_chunk_header *list; // pointer to the chunk partition
+  void *memory;
+  size_t capacity; // in chunks
+} allocator;
+
+typedef allocator *allocator_t;
+
+typedef struct {
+  bool out_of_memory;
+  void *ptr;
+} allocator_return_t;
+
+/*	Interface	*/
+void allocator_init(allocator_t alloc, void *mem, size_t size);
+
+allocator_return_t my_alloc(allocator_t alloc, size_t bytes);
+
+void my_free(allocator_t alloc, void *ptr);
+#endif
+#+end_src
+
+#+begin_src c :tangle src/allocator.c
+// allocator.c
+
+#include "allocator.h"
+
+void
+allocator_init(allocator_t alloc, void *mem, size_t size) {
+  assert(alloc && size > (BLOCK_SIZE + sizeof(arena_chunk_header)));
+  alloc->memory = mem;
+  alloc->capacity =
+      (size_t)((size - sizeof(arena_chunk_header)) / BLOCK_SIZE);
+  *((arena_chunk_header *)mem) =
+      (arena_chunk_header){alloc->capacity, NULL, NULL, false};
+  alloc->list = (arena_chunk_header *)mem;
+}
+
+allocator_return_t
+my_alloc(allocator_t alloc, size_t bytes) {
+  arena_chunk_header *chunk = alloc->list;
+  size_t required_blocks = BYTES_TO_BLOCKS(bytes);
+
+  while (chunk != NULL) {
+    // Find the first suitable chunk
+    if (chunk->in_use && chunk->length <= required_blocks) {
+      chunk = chunk->next;
+      continue;
+    }
+    
+    // Determine start of new block
+    byte *ptr = (byte *)alloc->memory + sizeof(arena_chunk_header);
+
+    // if start of new block is not end of chunk
+    if (bytes <= chunk->length * BLOCK_SIZE &&
+        bytes >= (chunk->length * BLOCK_SIZE - sizeof(arena_chunk_header))) {
+      // create split node
+      byte *new_node = ptr + chunk->length * BLOCK_SIZE - bytes;
+      size_t leftover_blocks =
+          BYTES_TO_BLOCKS((chunk->length - required_blocks) * BLOCK_SIZE -
+                          sizeof(arena_chunk_header));
+      *((arena_chunk_header *)new_node) = (arena_chunk_header){
+          leftover_blocks, chunk, chunk->next, false};
+    }
+
+    // Mark chunk as in use
+    chunk->in_use = true;
+    return (allocator_return_t){false, ptr};
+  }
+
+  return (allocator_return_t){true, NULL};
+}
+#+end_src
+
+* Building and Running
+
+To compile and run the tangled code:
+
+#+begin_src sh :tangle no
+echo "TODO Makefile"
+#+end_src
