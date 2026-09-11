@@ -39,8 +39,7 @@ typedef enum {
 
 /*	Interface	*/
 allocator_init_return_t allocator_init(allocator_t alloc, void *mem, size_t size);
-
 my_alloc_return_t my_alloc(allocator_t alloc, size_t bytes);
-
 void my_free(allocator_t alloc, void *ptr);
+void allocator_print(allocator_t alloc);
 #endif
